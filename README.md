@@ -115,5 +115,5 @@ is a genuinely capable supervisor. The trade: macOS point-updates can reset
 TCC grants (see lessons), and headless GUI-session dependencies (auto-login,
 Automation permissions) demand care a Linux daemon wouldn't.
 
-[CryptoTracker]: ../../CryptoTracker
-[Passe-Partout]: ../../passe-partout
+[CryptoTracker]: https://github.com/petertheise/crypto-tracker
+[Passe-Partout]: https://github.com/petertheise/passe-partout
