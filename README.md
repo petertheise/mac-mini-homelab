@@ -5,8 +5,8 @@ mini that runs my family's and my business's apps, does its own backups, and —
 the part I find most interesting — runs **scheduled, headless AI agents** that
 read email, keep a knowledge base current, and text me what matters.
 
-No code in this repo (two of the apps are open-sourced separately — see
-[CryptoTracker] and [Passe-Partout]; the business app stays private). This is
+No code in this repo (several of the apps are open-sourced separately: see
+[CryptoTracker], [Passe-Partout], and [Stash]; the business app stays private). This is
 the design, the operating decisions, and the lessons.
 
 ## The shape of it
@@ -80,6 +80,38 @@ design, so containment is structural, not aspirational:
 - **Failure is loud.** Every wrapper texts me on non-zero exit. Silence
   means "nothing to report," never "quietly broken."
 
+## Apps that call Claude themselves: Stash
+
+The agents above run on a schedule and act through tools. [Stash], the
+family's home inventory, uses the other pattern: the app makes small model
+calls in the request path, each with one job and a strict JSON schema.
+
+- **Photos in, typed fields out.** Snap a photo and Claude returns name,
+  brand, model, and the serial read off the rating plate. Walk a room with
+  20 photos and it drafts one item per thing it sees. Attach a receipt and
+  it picks this item's line (not the total) and turns "3 year warranty"
+  into an end date. Everything lands on a review screen first.
+- **Code checks every answer.** Structured outputs guarantee the shape, not
+  the truth, so dates are re-parsed, prices clamped, label names matched
+  against labels that exist, photo indexes bounds-checked, and URLs limited
+  to http(s) before anything touches the database.
+- **Web results are untrusted input too.** Replacement prices, manuals,
+  stock photos, and eBay comparables come from web search. Anything the app
+  then downloads goes through one fetcher that resolves the host, refuses
+  private addresses, and re-checks every redirect, so a poisoned search
+  result cannot point the server at the LAN.
+- **Pick the model per job, by measurement.** Vision and judgment calls
+  (reading a receipt, deciding whether a recall covers a specific drill)
+  stay on the largest model. For web lookups I ran five configurations on
+  the same item: Haiku with a basic search capped at two queries gave the
+  same price as Opus with the advanced search tool, at about 5% of the cost
+  ($0.012 vs $0.22) and six times faster.
+- **Keep a local copy when the upstream API is flaky.** The CPSC recall
+  API's text search fails server-side while its date-range queries work, so
+  Stash mirrors all 8,000+ recalls since 2000 and matches locally: code
+  picks candidates by brand and model, the model judges each one, verdicts
+  are cached per item.
+
 ## Operating lessons (each learned the annoying way)
 
 - **`tailscale ping` succeeding proves nothing about your ACLs.** The daemon
@@ -103,6 +135,14 @@ design, so containment is structural, not aspirational:
 - **Python venvs don't survive being moved.** Shebangs hardcode absolute
   paths and break silently (pip dies, python keeps working). Venvs are build
   artifacts: `requirements.txt` is the source of truth; rebuild, never copy.
+- **`launchctl kickstart -k` does not reread the plist.** A new
+  environment variable only takes effect after `bootout` plus `bootstrap`.
+  Do that while a deploy hook is also restarting the agent and the two
+  race: the agent can end up unloaded. Change config first, deploy code
+  second, and check that the service is actually loaded afterward.
+- **The login Keychain is locked over SSH.** A secret that a LaunchAgent
+  reads fine looks missing from an SSH session, so test credential paths
+  from launchd (a throwaway agent), or have the app log "ready" at startup.
 - **macOS ships bash 3.2 (2007).** `"${EMPTY_ARRAY[@]}"` under `set -u` is a
   fatal error that only fires on the code path your dry-run didn't take.
 
@@ -117,3 +157,4 @@ Automation permissions) demand care a Linux daemon wouldn't.
 
 [CryptoTracker]: https://github.com/petertheise/crypto-tracker
 [Passe-Partout]: https://github.com/petertheise/passe-partout
+[Stash]: https://github.com/petertheise/stash
